@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MAVLink телеметрія</title>
+<style>
+  :root{
+    --bg:#0e1116; --panel:#161b22; --line:#263040; --ink:#e6edf3;
+    --dim:#7d8590; --accent:#4aa3ff; --ok:#3fb950; --warn:#d29922; --bad:#f85149;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:14px/1.4 ui-sans-serif,system-ui,"Segoe UI",Roboto,sans-serif}
+  header{display:flex;align-items:center;gap:14px;padding:10px 16px;
+         border-bottom:1px solid var(--line);flex-wrap:wrap}
+  header h1{font-size:15px;margin:0;font-weight:600;letter-spacing:.3px}
+  .pill{padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;
+        border:1px solid var(--line);background:#0c1017;color:var(--dim)}
+  .pill.ok{color:var(--ok);border-color:#1c4a2a}
+  .pill.bad{color:var(--bad);border-color:#5c1f1c}
+  .pill.warn{color:var(--warn);border-color:#5a4415}
+  main{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:12px;padding:12px}
+  @media (max-width:900px){main{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px}
+  .panel h2{font-size:11px;text-transform:uppercase;letter-spacing:.09em;
+            color:var(--dim);margin:0 0 8px;font-weight:600}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .stat{background:#0c1017;border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+  .stat .k{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim)}
+  .stat .v{font-size:20px;font-weight:600;font-variant-numeric:tabular-nums;
+           margin-top:2px;white-space:nowrap}
+  .stat .v small{font-size:11px;color:var(--dim);font-weight:400;margin-left:3px}
+  .instr{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+  .bars{display:flex;flex-direction:column;gap:6px}
+  .bar{display:grid;grid-template-columns:26px 1fr 42px;align-items:center;gap:8px;
+       font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums}
+  .track{height:6px;background:#0c1017;border:1px solid var(--line);
+         border-radius:4px;position:relative;overflow:hidden}
+  .track i{position:absolute;top:0;bottom:0;background:var(--accent);display:block}
+  svg{display:block;width:100%;height:auto}
+  text{font-family:ui-sans-serif,system-ui,sans-serif}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>MAVLink телеметрія</h1>
+  <span class="pill" id="p-link">немає зв'язку</span>
+  <span class="pill" id="p-arm">DISARMED</span>
+  <span class="pill" id="p-mode">—</span>
+  <span class="pill" id="p-gps">GPS —</span>
+</header>
+
+<main>
+  <!-- Вид збоку: висота і відстань від точки зльоту -->
+  <section class="panel">
+    <h2>Вид збоку — висота та віддалення</h2>
+    <svg id="side" viewBox="0 0 900 470" preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"  stop-color="#12233b"/>
+          <stop offset="100%" stop-color="#0c1017"/>
+        </linearGradient>
+      </defs>
+      <rect x="0" y="0" width="900" height="470" fill="url(#sky)" rx="8"/>
+      <g id="grid"></g>
+      <!-- земля -->
+      <rect x="0" y="400" width="900" height="70" fill="#141a12"/>
+      <line x1="0" y1="400" x2="900" y2="400" stroke="#3d4a35" stroke-width="2"/>
+      <!-- домівка (точка зльоту) -->
+      <g id="home">
+        <path d="M70 400 l0 -22 l14 -12 l14 12 l0 22 z" fill="#243040" stroke="#4b5b70"/>
+        <text x="84" y="418" fill="#7d8590" font-size="11" text-anchor="middle">старт</text>
+      </g>
+      <!-- поточні напрямні -->
+      <g id="guides"></g>
+      <!-- апарат -->
+      <g id="craft"></g>
+    </svg>
+  </section>
+
+  <aside style="display:flex;flex-direction:column;gap:12px">
+    <section class="panel">
+      <h2>Положення</h2>
+      <div class="instr">
+        <!-- авіагоризонт: roll + pitch -->
+        <svg viewBox="0 0 120 120">
+          <clipPath id="clipH"><circle cx="60" cy="60" r="46"/></clipPath>
+          <g clip-path="url(#clipH)">
+            <g id="horizon">
+              <rect x="-120" y="-180" width="360" height="240" fill="#1d3a5c"/>
+            </g>
+          </g>
+          <circle cx="60" cy="60" r="46" fill="none" stroke="#263040" stroke-width="2"/>
+          <path d="M38 60 h14 M68 60 h14 M60 60 m-3 0 a3 3 0 1 0 6 0 a3 3 0 1 0 -6 0"
+                stroke="#ffb454" stroke-width="2" fill="none"/>
+          <text x="60" y="112" fill="#7d8590" font-size="9" text-anchor="middle">roll / pitch</text>
+        </svg>
+        <!-- компас: yaw -->
+        <svg viewBox="0 0 120 120">
+          <circle cx="60" cy="60" r="46" fill="#0c1017" stroke="#263040" stroke-width="2"/>
+          <g id="rose"></g>
+          <g id="needle">
+            <path d="M60 22 l9 30 l-9 -7 l-9 7 z" fill="#4aa3ff"/>
+          </g>
+          <text x="60" y="112" fill="#7d8590" font-size="9" text-anchor="middle">курс</text>
+        </svg>
+      </div>
+      <div class="row">
+        <div class="stat"><div class="k">roll</div><div class="v" id="v-roll">0<small>°</small></div></div>
+        <div class="stat"><div class="k">pitch</div><div class="v" id="v-pitch">0<small>°</small></div></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Політ</h2>
+      <div class="row">
+        <div class="stat"><div class="k">висота</div><div class="v" id="v-alt">0<small>м</small></div></div>
+        <div class="stat"><div class="k">відстань</div><div class="v" id="v-dist">0<small>м</small></div></div>
+        <div class="stat"><div class="k">швидкість</div><div class="v" id="v-gs">0<small>м/с</small></div></div>
+        <div class="stat"><div class="k">верт. швид.</div><div class="v" id="v-climb">0<small>м/с</small></div></div>
+        <div class="stat"><div class="k">батарея</div><div class="v" id="v-bat">0<small>В</small></div></div>
+        <div class="stat"><div class="k">над морем</div><div class="v" id="v-msl">0<small>м</small></div></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Канали пульта</h2>
+      <div class="bars" id="rc"></div>
+    </section>
+  </aside>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const SVG = "http://www.w3.org/2000/svg";
+const el = (n, a) => { const e = document.createElementNS(SVG, n);
+  for (const k in a) e.setAttribute(k, a[k]); return e; };
+
+// Геометрія панелі "вид збоку"
+const GROUND = 400, TOP = 40, X0 = 84, XMAX = 850;
+
+// Округлення межі шкали до "красивого" числа, щоб підписи не стрибали
+function niceMax(v, min) {
+  v = Math.max(v, min);
+  const p = Math.pow(10, Math.floor(Math.log10(v)));
+  for (const s of [1, 2, 2.5, 5, 10]) if (v <= s * p) return s * p;
+  return 10 * p;
+}
+
+// Квадрокоптер збоку: корпус, промені, гвинти. Нахиляється за pitch.
+function drawCraft(g, x, y, pitchDeg) {
+  g.innerHTML = "";
+  const body = el("g", { transform:`translate(${x},${y}) rotate(${-pitchDeg})` });
+  const add = (n,a) => body.appendChild(el(n,a));
+  add("line", {x1:-34,y1:0,x2:34,y2:0,stroke:"#4b5b70","stroke-width":3});          // рама
+  add("rect", {x:-13,y:-8,width:26,height:15,rx:4,fill:"#2b3648",stroke:"#5d7086"});
+  add("line", {x1:-34,y1:0,x2:-34,y2:-9,stroke:"#4b5b70","stroke-width":2.5});      // стійки моторів
+  add("line", {x1:34,y1:0,x2:34,y2:-9,stroke:"#4b5b70","stroke-width":2.5});
+  add("ellipse",{cx:-34,cy:-11,rx:20,ry:3,fill:"#4aa3ff","fill-opacity":.75});      // гвинти
+  add("ellipse",{cx:34,cy:-11,rx:20,ry:3,fill:"#4aa3ff","fill-opacity":.75});
+  add("line", {x1:-10,y1:7,x2:-12,y2:14,stroke:"#4b5b70","stroke-width":2});        // шасі
+  add("line", {x1:10,y1:7,x2:12,y2:14,stroke:"#4b5b70","stroke-width":2});
+  g.appendChild(body);
+}
+
+function render(d) {
+  // ---- шапка ----
+  const fresh = d.connected && (Date.now()/1000 - d.last_update) < 3;
+  $("p-link").textContent = fresh ? "зв'язок є" : "немає зв'язку";
+  $("p-link").className = "pill " + (fresh ? "ok" : "bad");
+  $("p-arm").textContent = d.armed ? "ARMED" : "DISARMED";
+  $("p-arm").className = "pill " + (d.armed ? "warn" : "");
+  $("p-mode").textContent = d.mode;
+  $("p-gps").textContent = `GPS ${d.sats} сат / fix ${d.fix}`;
+  $("p-gps").className = "pill " + (d.fix >= 3 ? "ok" : "warn");
+
+  // ---- цифри ----
+  const deg = r => r * 180 / Math.PI;
+  const set = (id, val, unit) => $(id).innerHTML = val + `<small>${unit}</small>`;
+  set("v-roll",  deg(d.roll).toFixed(1),  "°");
+  set("v-pitch", deg(d.pitch).toFixed(1), "°");
+  set("v-alt",   d.alt.toFixed(1),        "м");
+  set("v-dist",  d.distance.toFixed(0),   "м");
+  set("v-gs",    d.groundspeed.toFixed(1),"м/с");
+  set("v-climb", (d.climb >= 0 ? "+" : "") + d.climb.toFixed(1), "м/с");
+  set("v-bat",   d.battery_v.toFixed(1) + (d.battery_pct >= 0 ? ` · ${d.battery_pct}%` : ""), "В");
+  set("v-msl",   d.alt_msl.toFixed(0),    "м");
+
+  // ---- авіагоризонт ----
+  // Небо/земля зсуваються за pitch і повертаються за roll (як у справжньому приладі)
+  const h = $("horizon");
+  h.innerHTML = "";
+  const shift = deg(d.pitch) * 1.5;
+  const g = el("g", {transform:`rotate(${-deg(d.roll)} 60 60) translate(0 ${shift})`});
+  g.appendChild(el("rect",{x:-120,y:-180,width:360,height:240,fill:"#1d3a5c"}));
+  g.appendChild(el("rect",{x:-120,y:60,width:360,height:240,fill:"#4a3a22"}));
+  g.appendChild(el("line",{x1:-120,y1:60,x2:240,y2:60,stroke:"#e6edf3","stroke-width":1.5}));
+  for (const p of [-20,-10,10,20]) {
+    const w = (p % 20 === 0) ? 16 : 9;
+    g.appendChild(el("line",{x1:60-w,y1:60+p*1.5,x2:60+w,y2:60+p*1.5,
+                             stroke:"#e6edf3","stroke-opacity":.55,"stroke-width":1}));
+  }
+  h.appendChild(g);
+
+  // ---- компас ----
+  const rose = $("rose");
+  rose.innerHTML = "";
+  const rg = el("g", {transform:`rotate(${-d.heading} 60 60)`});
+  [["Пн",0],["Сх",90],["Пд",180],["Зх",270]].forEach(([n,a]) => {
+    const rad = (a - 90) * Math.PI / 180;
+    const t = el("text",{x:60+34*Math.cos(rad), y:64+34*Math.sin(rad),
+                         fill: a===0 ? "#f85149" : "#7d8590",
+                         "font-size":9,"text-anchor":"middle"});
+    t.textContent = n; rg.appendChild(t);
+  });
+  for (let a = 0; a < 360; a += 15) {
+    const rad = (a - 90) * Math.PI / 180;
+    rg.appendChild(el("line",{x1:60+44*Math.cos(rad),y1:60+44*Math.sin(rad),
+                              x2:60+40*Math.cos(rad),y2:60+40*Math.sin(rad),
+                              stroke:"#263040","stroke-width":1}));
+  }
+  rose.appendChild(rg);
+  const nd = $("needle").querySelector("path");
+  nd.setAttribute("transform", "");   // стрілка нерухома, крутиться картушка
+
+  // ---- вид збоку ----
+  const altMax  = niceMax(d.alt * 1.35, 30);
+  const distMax = niceMax(d.distance * 1.35, 50);
+  const px = X0 + (d.distance / distMax) * (XMAX - X0);
+  const py = GROUND - (d.alt / altMax) * (GROUND - TOP);
+
+  // сітка з підписами шкал
+  const grid = $("grid");
+  grid.innerHTML = "";
+  for (let i = 1; i <= 4; i++) {
+    const y = GROUND - i * (GROUND - TOP) / 4;
+    grid.appendChild(el("line",{x1:X0,y1:y,x2:XMAX,y2:y,stroke:"#1c2534","stroke-width":1}));
+    const t = el("text",{x:X0-8,y:y+4,fill:"#5b6673","font-size":11,"text-anchor":"end"});
+    t.textContent = (altMax * i / 4).toFixed(0) + " м";
+    grid.appendChild(t);
+  }
+  for (let i = 1; i <= 4; i++) {
+    const x = X0 + i * (XMAX - X0) / 4;
+    grid.appendChild(el("line",{x1:x,y1:TOP,x2:x,y2:GROUND,stroke:"#1c2534","stroke-width":1}));
+    const t = el("text",{x:x,y:GROUND+18,fill:"#5b6673","font-size":11,"text-anchor":"middle"});
+    t.textContent = (distMax * i / 4).toFixed(0) + " м";
+    grid.appendChild(t);
+  }
+
+  // напрямні до осей + підписи біля апарата
+  const gu = $("guides");
+  gu.innerHTML = "";
+  gu.appendChild(el("line",{x1:X0,y1:py,x2:px,y2:py,stroke:"#4aa3ff",
+                            "stroke-width":1,"stroke-dasharray":"4 4","stroke-opacity":.5}));
+  gu.appendChild(el("line",{x1:px,y1:py,x2:px,y2:GROUND,stroke:"#4aa3ff",
+                            "stroke-width":1,"stroke-dasharray":"4 4","stroke-opacity":.5}));
+  const lbl = (x,y,txt,anchor) => {
+    const t = el("text",{x,y,fill:"#4aa3ff","font-size":12,"text-anchor":anchor,"font-weight":600});
+    t.textContent = txt; gu.appendChild(t);
+  };
+  lbl(px + 46, py - 26, d.alt.toFixed(1) + " м", "start");
+  lbl((X0 + px) / 2, GROUND - 8, d.distance.toFixed(0) + " м", "middle");
+
+  drawCraft($("craft"), px, py, deg(d.pitch));
+
+  // ---- канали пульта ----
+  const rc = $("rc");
+  if (rc.children.length !== 4) {
+    rc.innerHTML = "";
+    ["ch1","ch2","ch3","ch4"].forEach(n => {
+      const row = document.createElement("div");
+      row.className = "bar";
+      row.innerHTML = `<span>${n}</span><span class="track"><i></i></span><span class="val">—</span>`;
+      rc.appendChild(row);
+    });
+  }
+  d.rc.forEach((v, i) => {
+    const row = rc.children[i];
+    const pct = Math.max(0, Math.min(100, (v - 1000) / 10));  // 1000..2000 → 0..100 %
+    row.querySelector("i").style.width = pct + "%";
+    row.querySelector(".val").textContent = v || "—";
+  });
+}
+
+async function tick() {
+  try { render(await (await fetch("/api/telemetry", {cache:"no-store"})).json()); }
+  catch (e) { $("p-link").textContent = "сервер недоступний"; $("p-link").className = "pill bad"; }
+}
+setInterval(tick, 100);
+tick();
+</script>
+</body>
+</html>
