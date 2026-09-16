@@ -82,6 +82,16 @@ takeoff 20
 
 In `GUIDED` mode the autopilot drives the motors directly, so RC channels stay at their idle values. To see them move, switch to `STABILIZE` and override a channel, for example `rc 1 1600`.
 
+### Test flight
+
+![ArduPilot SITL on a laptop streaming telemetry to the Raspberry Pi](docs/sitl-test.png)
+
+A simulated copter flight, with the laptop acting as the flight controller and the Raspberry Pi receiving its telemetry over Wi-Fi:
+
+- **Top left, ArduCopter SITL:** the simulated flight controller starts at the default ArduPilot test location. `DISARM_DELAY` is set to 0 so the copter doesn't disarm on the ground before takeoff.
+- **Bottom left, MAVProxy:** the copter switches to `GUIDED`, arms and takes off to 20 m, and the flight controller accepts each command (`COMMAND_ACK: ACCEPTED`). The simulated battery then drains until the low-battery warnings start.
+- **Right, Raspberry Pi over SSH:** `read_telemetry.py` receives the stream over UDP. While hovering, altitude holds at 20.0 m, roll and pitch stay within 0.002 rad (about 0.1°), and RC channels stay idle (1500/1500/1000/1500) because the autopilot flies the copter directly in `GUIDED` mode.
+
 ## Tech stack
 
 Python 3.11 · pymavlink · MAVLink · ArduPilot SITL · Raspberry Pi OS · HTML/CSS/JavaScript · SVG
